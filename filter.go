@@ -51,7 +51,7 @@ func (f *filter) Valid() bool {
 			}
 			continue
 		}
-		if v.Type == FilterTypeInt() {
+		if v.Type == FilterTypeUint() {
 			r, err := strconv.Atoi(v.Value)
 			if err != nil {
 				if v.Default != nil {
@@ -63,6 +63,10 @@ func (f *filter) Valid() bool {
 					f.data[v.Name] = nil
 					continue
 				}
+			}
+			if r < 0 {
+				f.errMsg = v.Name + " is invalid"
+				return false
 			}
 			f.data[v.Name] = r
 		} else if v.Type == FilterTypeString() {
@@ -81,8 +85,8 @@ func NewFilter() *filter {
 	}
 }
 
-func FilterTypeInt() filterType {
-	return "int"
+func FilterTypeUint() filterType {
+	return "uint"
 }
 
 func FilterTypeString() filterType {
@@ -99,11 +103,11 @@ func Rule(name, value string, ft filterType, required bool, df interface{}) filt
 	}
 }
 
-func RuleInt(name, value string, required bool, df interface{}) filterRule {
+func RuleUint(name, value string, required bool, df interface{}) filterRule {
 	return filterRule{
 		Name:     name,
 		Value:    value,
-		Type:     FilterTypeInt(),
+		Type:     FilterTypeUint(),
 		Default:  df,
 		Required: required,
 	}
