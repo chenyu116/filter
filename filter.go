@@ -3,6 +3,7 @@ package filter
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"html"
 	"sort"
 	"strconv"
 	"strings"
@@ -19,30 +20,31 @@ type filterRule struct {
 
 type filterType string
 
-func GetString(rules []filterRule, key string) string {
-	for _, v := range rules {
-		if v.Name == key {
-			if v.Value == "" {
-				return v.DefaultString
+func GetString(rules []filterRule, key string, escape bool) string {
+	for k := range rules {
+		if rules[k].Name == key {
+			if rules[k].Value == "" {
+				return rules[k].DefaultString
 			}
-			return v.Value
+			if escape {
+				return html.EscapeString(rules[k].Value)
+			}
 		}
 	}
 	return ""
 }
 
 func GetInt(rules []filterRule, key string) int {
-	for _, v := range rules {
-		if v.Name == key {
-			v.Value = strings.Trim(v.Value, " ")
-			if v.Value == "" {
-				return v.DefaultInt
+	for k := range rules {
+		if rules[k].Name == key {
+			if rules[k].Value == "" {
+				return rules[k].DefaultInt
 			}
-			r, err := strconv.Atoi(v.Value)
-			if err != nil || r < 0 {
-				return v.DefaultInt
+			rn, err := strconv.Atoi(rules[k].Value)
+			if err != nil || rn < 0 {
+				return rules[k].DefaultInt
 			}
-			return r
+			return rn
 		}
 	}
 	return -1
@@ -51,18 +53,18 @@ func GetInt(rules []filterRule, key string) int {
 func Valid(rules ...filterRule) ([]filterRule, bool) {
 	var r int
 	var err error
-	for _, v := range rules {
-		v.Value = strings.Trim(v.Value, " ")
-		if v.Value == "" {
-			if v.Required && v.DefaultString == "" {
-				return nil, false
+	for k := range rules {
+		if rules[k].Type == FilterTypeUint() {
+			if rules[k].Required {
+				if rules[k].Value == "" && rules[k].DefaultInt == -1 {
+					return nil, false
+				} else {
+					continue
+				}
 			}
-			continue
-		}
-		if v.Type == FilterTypeUint() {
-			r, err = strconv.Atoi(v.Value)
+			r, err = strconv.Atoi(rules[k].Value)
 			if err != nil {
-				if v.Required && v.DefaultInt == -1 {
+				if rules[k].Required && rules[k].DefaultInt == -1 {
 					return nil, false
 				} else {
 					continue
@@ -72,7 +74,12 @@ func Valid(rules ...filterRule) ([]filterRule, bool) {
 				return nil, false
 			}
 			continue
-		} else if v.Type == FilterTypeString() {
+		} else if rules[k].Type == FilterTypeString() {
+			if rules[k].Required {
+				if rules[k].Value == "" && rules[k].DefaultString == "" {
+					return nil, false
+				}
+			}
 			continue
 		} else {
 			return nil, false
@@ -82,9 +89,16 @@ func Valid(rules ...filterRule) ([]filterRule, bool) {
 }
 
 func ValidToken(r []filterRule, KEY, token string) bool {
+	if token == "" {
+		return true
+	}
+
 	var keys []string
 	for k := range r {
 		if r[k].Required {
+			if r[k].Name == "app" && r[k].Value == "mobile" {
+				return true
+			}
 			keys = append(keys, r[k].Name)
 		}
 	}
@@ -99,8 +113,7 @@ func ValidToken(r []filterRule, KEY, token string) bool {
 		}
 	}
 	tokenBytes := md5.Sum([]byte(tokenString + KEY))
-	_token := hex.EncodeToString(tokenBytes[:])
-	if strings.Compare(token, _token) != 0 {
+	if strings.Compare(token, hex.EncodeToString(tokenBytes[:])) != 0 {
 		return false
 	}
 	return true
